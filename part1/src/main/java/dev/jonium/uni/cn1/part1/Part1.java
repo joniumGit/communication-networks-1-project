@@ -1,6 +1,7 @@
 package dev.jonium.uni.cn1.part1;
 
 
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyRoundRobin;
 import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
@@ -12,6 +13,7 @@ import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.hosts.HostSimple;
 import org.cloudbus.cloudsim.resources.Pe;
 import org.cloudbus.cloudsim.resources.PeSimple;
+import org.cloudbus.cloudsim.schedulers.cloudlet.CloudletSchedulerSpaceShared;
 import org.cloudbus.cloudsim.schedulers.cloudlet.CloudletSchedulerTimeShared;
 import org.cloudbus.cloudsim.schedulers.vm.VmSchedulerTimeShared;
 import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelFull;
@@ -36,17 +38,67 @@ import java.util.List;
 public class Part1 {
 
     public static void main(String[] args) {
-        var p = new Part1();
-        p.simulate();
+        var q1i = new Part1(new SimulationSettings(
+                400000,
+                1000,
+                1,
+                1
+        ));
+        q1i.simulate();
+
+        var q1ii = new Part1(new SimulationSettings(
+                400000,
+                500,
+                1,
+                1
+        ));
+        q1ii.simulate();
+
+        var q2i = new Part1(new SimulationSettings(
+                100000,
+                250,
+                1,
+                2
+        ));
+        q2i.simulate();
+
+        var q2ii = new Part1(new SimulationSettings(
+                200000,
+                500,
+                1,
+                2
+        ));
+        q2ii.simulate();
+
+
+        // TODO: 3 VM
+        var q2iii = new Part1(new SimulationSettings(
+                100000,
+                250,
+                1,
+                3
+        ));
+        // q2iii.simulate();
+
+        var q2iiii = new Part1(new SimulationSettings(
+                200000,
+                500,
+                1,
+                3
+        ));
+        //q2iiii.simulate();
     }
 
     private final List<Cloudlet> cloudlets;
     private final List<Vm> vms;
     private final Logger log;
     private final CloudSim simulation;
+    private final SimulationSettings settings;
+
     private static final long PES = 1; // number of cpus
 
-    public Part1() {
+    public Part1(SimulationSettings settings) {
+        this.settings = settings;
         cloudlets = new ArrayList<>();
         vms = new ArrayList<>();
         simulation = new CloudSim();
@@ -61,16 +113,18 @@ public class Part1 {
 
         // Broker and other entities
         var broker = createBroker("DEFAULT");
-        var vm = createVM("Xen");
-        var cl = createCloudlet(0);
 
-        // Submit VM's
-        vms.add(vm);
+        for (int j = 0; j < settings.hostVmCount; j++) {
+            var vm = createVM("Xen " + j);
+            var cl = createCloudlet();
+            broker.bindCloudletToVm(cl, vm);
+            cloudlets.add(cl);
+            vms.add(vm);
+        }
+
+        // Submit
         broker.submitVmList(vms);
-
-        // Submit cloudlets to default VM
-        cloudlets.add(cl);
-        broker.submitCloudletList(cloudlets, vm);
+        broker.submitCloudletList(cloudlets);
 
         // Run
         simulation.start();
@@ -78,14 +132,14 @@ public class Part1 {
         log.info("CloudSimExample1 finished!");
     }
 
-    private Cloudlet createCloudlet(int id) {
+    private Cloudlet createCloudlet() {
         // Cloudlet properties
-        long length = 20000;
+        long length = settings.cloudletLength;
         long fileSize = 300;
         long outputSize = 300;
         var utilizationModel = new UtilizationModelFull();
 
-        var cloudlet = new CloudletSimple(id, length, PES);
+        var cloudlet = new CloudletSimple(length, PES);
         cloudlet.setFileSize(fileSize);
         cloudlet.setOutputSize(outputSize);
         cloudlet.setUtilizationModel(utilizationModel); // Same model for all
@@ -95,16 +149,18 @@ public class Part1 {
 
     private Vm createVM(String name) {
         // VM description
-        var vmid = 0;
-        var mips = 800;
+        var mips = settings.mips;
         var size = 10000; // image size (MB)
         var ram = 512; // vm memory (MB)
         var bw = 1000;
 
 
         // create VM
-        var vm = new VmSimple(vmid, mips, PES);
-        vm.setCloudletScheduler(new CloudletSchedulerTimeShared());
+        var vm = new VmSimple(mips, PES);
+        vm.setCloudletScheduler(settings.hostCount > 1
+                ? new CloudletSchedulerSpaceShared()
+                : new CloudletSchedulerTimeShared()
+        );
         vm.setBw(bw);
         vm.setSize(size);
         vm.setRam(ram);
@@ -121,20 +177,20 @@ public class Part1 {
         int mips = 1000;
         pes.add(new PeSimple(mips));
 
-        int hostId = 0;
         int ram = 2048; // host memory (MB)
         long storage = 1000000; // host storage
         int bw = 10000;
 
-        var hs = new HostSimple(
-                ram,
-                bw,
-                storage,
-                pes
-        );
-        hs.setId(hostId);
-        hs.setVmScheduler(new VmSchedulerTimeShared());
-        hosts.add(hs);
+        for (int i = 0; i < settings.hostCount; i++) {
+            var hs = new HostSimple(
+                    ram,
+                    bw,
+                    storage,
+                    pes
+            );
+            hs.setVmScheduler(new VmSchedulerTimeShared());
+            hosts.add(hs);
+        }
 
         var arch = "x86"; // system architecture
         var os = "Linux"; // operating system
@@ -196,4 +252,11 @@ public class Part1 {
         }
     }
 
+    public record SimulationSettings(
+            long cloudletLength,
+            long mips,
+            int hostCount,
+            int hostVmCount
+    ) {
+    }
 }
