@@ -69,7 +69,7 @@ local.properties
 .sts4-cache/
 
 ### Intellij+all ###
-.idea/
+.idea/*
 *.iml
 *.ipr
 modules.xml
@@ -188,3 +188,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/maven,intellij+all,linux,windows,macos,eclipse
+
+PureEdgeSim
