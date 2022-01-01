@@ -11,16 +11,11 @@
 
     <artifactId>part1</artifactId>
 
-    <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.cloudsimplus</groupId>
             <artifactId>cloudsim-plus</artifactId>
-            <version>7.2.0</version>
+            <version>6.2.7</version>
         </dependency>
     </dependencies>
 

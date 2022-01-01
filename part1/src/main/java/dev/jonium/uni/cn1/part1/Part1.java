@@ -1,7 +1,6 @@
 package dev.jonium.uni.cn1.part1;
 
 
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyRoundRobin;
 import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
@@ -13,15 +12,16 @@ import org.cloudbus.cloudsim.hosts.Host;
 import org.cloudbus.cloudsim.hosts.HostSimple;
 import org.cloudbus.cloudsim.resources.Pe;
 import org.cloudbus.cloudsim.resources.PeSimple;
-import org.cloudbus.cloudsim.schedulers.cloudlet.CloudletSchedulerSpaceShared;
-import org.cloudbus.cloudsim.schedulers.cloudlet.CloudletSchedulerTimeShared;
+import org.cloudbus.cloudsim.schedulers.cloudlet.CloudletScheduler;
+import org.cloudbus.cloudsim.schedulers.vm.VmScheduler;
 import org.cloudbus.cloudsim.schedulers.vm.VmSchedulerTimeShared;
+import org.cloudbus.cloudsim.utilizationmodels.UtilizationModel;
 import org.cloudbus.cloudsim.utilizationmodels.UtilizationModelFull;
 import org.cloudbus.cloudsim.vms.Vm;
 import org.cloudbus.cloudsim.vms.VmSimple;
+import org.cloudsimplus.builders.tables.CloudletsTableBuilder;
 import org.slf4j.Logger;
 
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -30,176 +30,90 @@ import java.util.List;
  * A simple example showing how to create a datacenter with one host and run one
  * cloudlet on it.
  * <p>
- * Copied from
- * https://github.com/muneeb666/CNCloudSimLab/blob/4fb48907a08c2878e464dfdaaed1a12f48da0ca5/cloudsimCnLab/cloudsim-3.0.3/sources/datacenterSimulation/Task1.java
+ * Tries to emulate the Task1 from
+ * <a href="https://github.com/muneeb666/CNCloudSimLab/blob/4fb48907a08c2878e464dfdaaed1a12f48da0ca5/cloudsimCnLab/cloudsim-3.0.3/sources/datacenterSimulation/Task1.java">
+ * GitHub Link</a>
  * and modified to work with <b>cloudsimplus</b>
  */
 @SuppressWarnings("SameParameterValue")
 public class Part1 {
 
-    public static void main(String[] args) {
-        var q1i = new Part1(new SimulationSettings(
-                400000,
-                1000,
-                1,
-                1
-        ));
-        q1i.simulate();
-
-        var q1ii = new Part1(new SimulationSettings(
-                400000,
-                500,
-                1,
-                1
-        ));
-        q1ii.simulate();
-
-        var q2i = new Part1(new SimulationSettings(
-                100000,
-                250,
-                1,
-                2
-        ));
-        q2i.simulate();
-
-        var q2ii = new Part1(new SimulationSettings(
-                200000,
-                500,
-                1,
-                2
-        ));
-        q2ii.simulate();
-
-
-        // TODO: 3 VM
-        var q2iii = new Part1(new SimulationSettings(
-                100000,
-                250,
-                1,
-                3
-        ));
-        // q2iii.simulate();
-
-        var q2iiii = new Part1(new SimulationSettings(
-                200000,
-                500,
-                1,
-                3
-        ));
-        //q2iiii.simulate();
-    }
-
-    private final List<Cloudlet> cloudlets;
-    private final List<Vm> vms;
     private final Logger log;
     private final CloudSim simulation;
     private final SimulationSettings settings;
 
-    private static final long PES = 1; // number of cpus
-
     public Part1(SimulationSettings settings) {
         this.settings = settings;
-        cloudlets = new ArrayList<>();
-        vms = new ArrayList<>();
         simulation = new CloudSim();
         log = CloudSim.LOGGER;
     }
 
-    private void simulate() {
+    public void simulate() {
         log.info("Starting CloudSimExample1...\n");
 
         // Make default Datacenter
-        createDatacenter("DEFAULT");
+        settings.datacenters.forEach(this::createDatacenter);
 
         // Broker and other entities
-        var broker = createBroker("DEFAULT");
+        var broker = createBroker("broker");
 
-        for (int j = 0; j < settings.hostVmCount; j++) {
-            var vm = createVM("Xen " + j);
-            var cl = createCloudlet();
-            broker.bindCloudletToVm(cl, vm);
-            cloudlets.add(cl);
-            vms.add(vm);
+        for (var vmSettings : settings.vms) {
+            var vm = createVM(vmSettings);
+            broker.submitVm(vm);
+            for (var clSettings : vmSettings.cloudlets) {
+                var cl = createCloudlet(clSettings);
+                broker.submitCloudlet(cl);
+                broker.bindCloudletToVm(cl, vm);
+            }
         }
-
-        // Submit
-        broker.submitVmList(vms);
-        broker.submitCloudletList(cloudlets);
 
         // Run
         simulation.start();
-        printCloudletList();
+
+        new CloudletsTableBuilder(broker.getCloudletSubmittedList()).build();
         log.info("CloudSimExample1 finished!");
     }
 
-    private Cloudlet createCloudlet() {
-        // Cloudlet properties
-        long length = settings.cloudletLength;
-        long fileSize = 300;
-        long outputSize = 300;
-        var utilizationModel = new UtilizationModelFull();
+    private Cloudlet createCloudlet(CloudletSettings setings) {
 
-        var cloudlet = new CloudletSimple(length, PES);
-        cloudlet.setFileSize(fileSize);
-        cloudlet.setOutputSize(outputSize);
-        cloudlet.setUtilizationModel(utilizationModel); // Same model for all
+        var cloudlet = new CloudletSimple(setings.length, setings.pes);
+        cloudlet.setFileSize(setings.fileSize);
+        cloudlet.setOutputSize(setings.outputSize);
+        cloudlet.setUtilizationModel(setings.utilizationModel); // Same model for all
 
         return cloudlet;
     }
 
-    private Vm createVM(String name) {
-        // VM description
-        var mips = settings.mips;
-        var size = 10000; // image size (MB)
-        var ram = 512; // vm memory (MB)
-        var bw = 1000;
+    private Vm createVM(VMSettings settings) {
 
-
-        // create VM
-        var vm = new VmSimple(mips, PES);
-        vm.setCloudletScheduler(settings.hostCount > 1
-                ? new CloudletSchedulerSpaceShared()
-                : new CloudletSchedulerTimeShared()
-        );
-        vm.setBw(bw);
-        vm.setSize(size);
-        vm.setRam(ram);
-        vm.setDescription(name);
+        var vm = new VmSimple(settings.mips, settings.pes);
+        vm.setCloudletScheduler(settings.scheduler);
+        vm.setBw(settings.bw);
+        vm.setSize(settings.imageSize);
+        vm.setRam(settings.ram);
+        vm.setDescription(settings.name);
 
         return vm;
     }
 
 
-    private void createDatacenter(String name) {
+    private void createDatacenter(DatacenterSettings settings) {
         var hosts = new ArrayList<Host>();
-        var pes = new ArrayList<Pe>();
 
-        int mips = 1000;
-        pes.add(new PeSimple(mips));
-
-        int ram = 2048; // host memory (MB)
-        long storage = 1000000; // host storage
-        int bw = 10000;
-
-        for (int i = 0; i < settings.hostCount; i++) {
+        for (var hostSetting : settings.hosts) {
+            var pes = new ArrayList<Pe>();
+            for (long i = 0; i < hostSetting.nPE; i++) {
+                pes.add(new PeSimple(hostSetting.mipsPerPE));
+            }
             var hs = new HostSimple(
-                    ram,
-                    bw,
-                    storage,
+                    hostSetting.ram,
+                    hostSetting.bw,
+                    hostSetting.storage,
                     pes
             );
-            hs.setVmScheduler(new VmSchedulerTimeShared());
+            hs.setVmScheduler(hostSetting.scheduler);
             hosts.add(hs);
         }
-
-        var arch = "x86"; // system architecture
-        var os = "Linux"; // operating system
-        var vmm = "Xen";
-        var timeZone = 10.0; // time zone this resource located
-        var cost = 3.0; // the cost of using processing in this resource
-        var costPerMem = 0.05; // the cost of using memory in this resource
-        var costPerStorage = 0.001; // the cost of using storage in this
-        var costPerBw = 0.0; // the cost of using bw in this resource
 
         var dc = new DatacenterSimple(
                 simulation,
@@ -207,56 +121,167 @@ public class Part1 {
                 new VmAllocationPolicySimple(),
                 Collections.emptyList()
         );
-        dc.setTimeZone(timeZone);
-        dc.setName(name);
+        dc.setTimeZone(settings.timeZone);
+        dc.setName(settings.vmm);
 
         var charac = dc.getCharacteristics();
-        charac.setArchitecture(arch);
-        charac.setOs(os);
-        charac.setVmm(vmm);
-        charac.setCostPerBw(costPerBw);
-        charac.setCostPerMem(costPerMem);
-        charac.setCostPerStorage(costPerStorage);
-        charac.setCostPerSecond(cost);
+        charac.setArchitecture(settings.arch);
+        charac.setOs(settings.os);
+        charac.setVmm(settings.vmm);
+        charac.setCostPerBw(settings.costPerBandWidth);
+        charac.setCostPerMem(settings.costPerMemory);
+        charac.setCostPerStorage(settings.costPerStorage);
+        charac.setCostPerSecond(settings.costPerSecond);
     }
 
     private DatacenterBroker createBroker(String name) {
         return new DatacenterBrokerSimple(simulation, name);
     }
 
-    private void printCloudletList() {
-        var indent = "    ";
-        log.info("\n========== OUTPUT ==========\n");
-        log.info(
-                "Cloudlet ID{}End Status{}    Data Center{}Virtual Machine{}    Time{}Start Time{}Finish Time",
-                indent, indent, indent, indent, indent, indent
-        );
+    public record HostSettings(
+            long ram,
+            long bw,
+            long storage,
+            long mipsPerPE,
+            long nPE,
+            VmScheduler scheduler
+    ) {
+        public HostSettings() {
+            this(null, null, null);
+        }
 
-        var dft = new DecimalFormat("###.##");
-        for (Cloudlet cloudlet : cloudlets) {
-            var sb = new StringBuilder();
-            sb.append(String.format("%1$11d", cloudlet.getId()))
-                    .append(indent)
-                    .append(String.format("%1$10s", cloudlet.getStatus()))
-                    .append(indent)
-                    .append(String.format("%1$15s", cloudlet.getLastTriedDatacenter().getName()))
-                    .append(indent)
-                    .append(String.format("%1$15s", cloudlet.getVm().getDescription()))
-                    .append(indent)
-                    .append(String.format("%1$8s", dft.format(cloudlet.getActualCpuTime())))
-                    .append(indent)
-                    .append(String.format("%1$10s", dft.format(cloudlet.getExecStartTime())))
-                    .append(indent)
-                    .append(String.format("%1$11s", dft.format(cloudlet.getFinishTime())));
-            log.info("{}", sb);
+        public HostSettings(VmScheduler scheduler) {
+            this(null, null, scheduler);
+        }
+
+        public HostSettings(Long nPE, Long mipsPerPE, VmScheduler scheduler) {
+            this(
+                    2048,
+                    10000,
+                    1_000_000,
+                    mipsPerPE == null ? 1000 : mipsPerPE,
+                    nPE == null ? 1 : nPE,
+                    scheduler == null ? new VmSchedulerTimeShared() : scheduler
+            );
+        }
+    }
+
+    public record VMSettings(
+            String name,
+            long mips,
+            long pes,
+            long ram,
+            long bw,
+            long imageSize,
+            CloudletScheduler scheduler,
+            List<CloudletSettings> cloudlets
+    ) {
+        public VMSettings(
+                String name,
+                long mips,
+                CloudletScheduler scheduler,
+                List<CloudletSettings> cloudlets
+        ) {
+            this(
+                    name,
+                    mips,
+                    1,
+                    512,
+                    1000,
+                    10_000,
+                    scheduler,
+                    cloudlets
+            );
+        }
+
+        public static List<VMSettings> identical(
+                long count,
+                String name,
+                long mips,
+                CloudletScheduler scheduler,
+                List<CloudletSettings> cloudlets
+        ) {
+            var out = new ArrayList<VMSettings>();
+            for (long i = 0; i < count; i++) {
+                try {
+                    out.add(new VMSettings(
+                            String.format("%s %d", name, i),
+                            mips,
+                            scheduler.getClass().getConstructor().newInstance(),
+                            cloudlets
+                    ));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            return out;
+        }
+    }
+
+    public record DatacenterSettings(
+            String vmm,
+            String arch,
+            String os,
+            double timeZone,
+            double costPerSecond,
+            double costPerMemory,
+            double costPerStorage,
+            double costPerBandWidth,
+            List<HostSettings> hosts
+    ) {
+        public DatacenterSettings(List<HostSettings> hosts) {
+            this(
+                    "Xen",
+                    "x86",
+                    "Linux",
+                    10.0,
+                    3.0,
+                    0.05,
+                    0.001,
+                    0.0,
+                    hosts
+            );
+        }
+
+        @SuppressWarnings("unused")
+        public DatacenterSettings(String vmm, List<HostSettings> hosts) {
+            this(
+                    vmm,
+                    "x86",
+                    "Linux",
+                    10.0,
+                    3.0,
+                    0.05,
+                    0.001,
+                    0.0,
+                    hosts
+            );
+        }
+    }
+
+    public record CloudletSettings(
+            long pes,
+            long length,
+            long fileSize,
+            long outputSize,
+            UtilizationModel utilizationModel
+    ) {
+        public CloudletSettings(long length) {
+            this(
+                    1,
+                    length,
+                    300,
+                    300,
+                    new UtilizationModelFull()
+            );
         }
     }
 
     public record SimulationSettings(
-            long cloudletLength,
-            long mips,
-            int hostCount,
-            int hostVmCount
+            List<DatacenterSettings> datacenters,
+            List<VMSettings> vms
     ) {
     }
+
+
 }
