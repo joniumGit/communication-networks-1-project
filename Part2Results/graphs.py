@@ -20,7 +20,8 @@ selection = [
     'Average VM CPU usage (Edge) (%)',
     'Average VM CPU usage (Mist) (%)',
 
-    'Generated tasks'
+    'Generated tasks',
+    'Average waiting time (s)'
 ]
 
 ALL = 'ALL'
@@ -31,7 +32,7 @@ MIST_AND_CLOUD = 'MIST_AND_CLOUD'
 MIST_ONLY = 'MIST_ONLY'
 
 ARCH, DEVICE_COUNT, EXEC_DELAY, TASK_SUCCESS_COUNT, TRAFFIC, VM_CPU = selection[:6]
-VM_CPU_CLOUD, VM_CPU_EDGE, VM_CPU_MIST, GENERATED_TASKS = selection[6:]
+VM_CPU_CLOUD, VM_CPU_EDGE, VM_CPU_MIST, GENERATED_TASKS, AVG_WAIT = selection[6:]
 
 ARCHS = [ALL, CLOUD_ONLY, EDGE_ONLY, MIST_ONLY, MIST_AND_CLOUD, EDGE_AND_CLOUD]
 COLOR = ['black', 'blue', 'red', 'green', 'cyan', 'pink']
@@ -114,5 +115,6 @@ if __name__ == '__main__':
         plot_cpu(simu)
     plot_field(TRAFFIC)
     plot_field(EXEC_DELAY)
+    plot_field(AVG_WAIT)
     plot_success_rate()
     plt.show()
