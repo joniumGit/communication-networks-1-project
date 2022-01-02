@@ -87,10 +87,32 @@ def plot_field(field, block=False):
         plt.show(block=block)
 
 
+def plot_success_rate(block=False):
+    fig: plt.Figure
+    axs: np.ndarray[plt.Axes]
+    fig, axs = plt.subplots(3, 1)
+
+    fig.suptitle("Success Rate (Completed / Generated) (%)")
+    for ax, simulation in zip(axs.flatten(), [simulation_small, simulation_medium, simulation_large]):
+
+        for target_arch, c in zip(ARCHS, COLOR):
+            data = simulation[simulation[ARCH] == target_arch]
+            ax.plot(
+                data[DEVICE_COUNT],
+                data[TASK_SUCCESS_COUNT] / data[GENERATED_TASKS] * 100,
+                label=f"{target_arch}",
+                color=c
+            )
+            ax.set_title(make_title(simulation))
+
+        make_legend(ax, fig)
+        plt.show(block=block)
+
+
 if __name__ == '__main__':
     for simu in [simulation_small, simulation_medium, simulation_large]:
         plot_cpu(simu)
     plot_field(TRAFFIC)
     plot_field(EXEC_DELAY)
-    plot_field(TASK_SUCCESS_COUNT)
+    plot_success_rate()
     plt.show()
